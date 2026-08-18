@@ -15,6 +15,12 @@ type FastForge struct {
 }
 
 func (f FastForge) CreateProject() {
+
+	if fileExists(f.Name) {
+		fmt.Printf("Error: project '%s' already exists.\n", f.Name)
+		return
+	}
+
 	folders := []string{
 		"app",
 		"app/api/routes",
@@ -55,7 +61,7 @@ func (f FastForge) CreateProject() {
 
 		err := os.MkdirAll(path, 0755)
 		if err != nil {
-			fmt.Println("erro:", err)
+			fmt.Println("Error:", err)
 			return
 		}
 	}
@@ -69,7 +75,7 @@ func (f FastForge) CreateProject() {
 		case "app/main.py":
 			template, err := templatesFS.ReadFile("templates/main.py")
 			if err != nil {
-				fmt.Println("erro ao ler template:", err)
+				fmt.Println("Error reading template:", err)
 				return
 			}
 
@@ -78,7 +84,7 @@ func (f FastForge) CreateProject() {
 		case ".gitignore":
 			template, err := templatesFS.ReadFile("templates/gitignore.txt")
 			if err != nil {
-				fmt.Println("erro ao ler template:", err)
+				fmt.Println("Error reading template:", err)
 				return
 			}
 
@@ -87,17 +93,16 @@ func (f FastForge) CreateProject() {
 		case "requirements.txt":
 			template, err := templatesFS.ReadFile("templates/requirements.txt")
 			if err != nil {
-				fmt.Println("erro ao ler template:", err)
+				fmt.Println("Error reading template:", err)
 				return
 			}
 
 			content = template
-
 		}
 
 		err := os.WriteFile(path, content, 0644)
 		if err != nil {
-			fmt.Println("erro:", err)
+			fmt.Println("Error:", err)
 			return
 		}
 
@@ -105,4 +110,9 @@ func (f FastForge) CreateProject() {
 	}
 
 	fmt.Printf("\nProject created: { Name: %s }\n", f.Name)
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

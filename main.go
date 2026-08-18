@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -19,11 +20,16 @@ func main() {
 
 	name, err := reader.ReadString('\n')
 	if err != nil {
-		fmt.Println("erro:", err)
+		fmt.Println("Error reading project name:", err)
 		return
 	}
 
 	name = strings.TrimSpace(name)
+
+	if name == "" {
+		fmt.Println("Error: project name cannot be empty.")
+		return
+	}
 
 	project := FastForge{
 		Name: name,
@@ -32,19 +38,19 @@ func main() {
 	project.CreateProject()
 }
 
-
 func clearTerminal() {
 	var cmd *exec.Cmd
 
-	if os.Getenv("OS") == "Windows_NT" {
+	if runtime.GOOS == "windows" {
 		cmd = exec.Command("cmd", "/c", "cls")
 	} else {
 		cmd = exec.Command("clear")
 	}
 
 	cmd.Stdout = os.Stdout
+
 	if err := cmd.Run(); err != nil {
-		fmt.Println("erro ao limpar terminal:", err)
+		fmt.Println("Error clearing terminal:", err)
 	}
 }
 
@@ -61,7 +67,7 @@ func printLogo() {
   ______        _   ______
  |  ____|      | | |  ____|
  | |__ __ _ ___| |_| |__ ___  _ __ __ _  ___
- |  __/ _´ / __| __|  __/ _ \| ´__/ _´ |/ _ \
+ |  __/ _` + "`" + ` / __| __|  __/ _ \| '__/ _` + "`" + ` |/ _ \
  | | | (_| \__ \ |_| | | (_) | | | (_| |  __/
  |_|  \__,_|___/\__|_|  \___/|_|  \__, |\___|
                                    __/ |
