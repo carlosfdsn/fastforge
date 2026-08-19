@@ -55,10 +55,12 @@ func clearTerminal() {
 }
 
 const (
-	reset = "\033[0m"
-	cyan  = "\033[36m"
-	gray  = "\033[90m"
-	green = "\033[32m"
+	reset  = "\033[0m"
+	cyan   = "\033[36m"
+	gray   = "\033[90m"
+	green  = "\033[32m"
+	red    = "\033[31m"
+	yellow = "\033[33m"
 )
 
 func printLogo() {

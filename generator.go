@@ -4,7 +4,9 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 )
 
 //go:embed templates/*
@@ -21,8 +23,61 @@ func (f FastForge) CreateProject() {
 		return
 	}
 
+	if err := os.MkdirAll(f.Name, 0755); err != nil {
+		errorMessage(fmt.Sprintf("Failed to create project directory: %v", err))
+		return
+	}
+
+	fmt.Println()
+	fmt.Printf("%sCreating %s%s\n", cyan, f.Name, reset)
+	fmt.Println()
+
+	fmt.Printf("%sSetup%s\n", gray, " ──────────────────────────")
+	if !isUVInstalled() {
+		infoMessage("uv not found. Installing...")
+
+		if err := installUV(); err != nil {
+			errorMessage(fmt.Sprintf("Failed to install uv: %v", err))
+			return
+		}
+
+		successMessage("uv installed ")
+	} else {
+		successMessage("uv found")
+	}
+
+	if err := runCommand(f.Name, "uv", "init"); err != nil {
+		errorMessage(fmt.Sprintf("Failed to initialize uv project: %v", err))
+		return
+	}
+
+	successMessage("Python project initialized\n")
+
+	dependencies := []string {
+		"fastapi",
+		"sqlalchemy",
+		"pydantic",
+		"pydantic-settings",
+		"alembic",
+		"psycopg[binary]",
+		"pyjwt",
+		"pwdlib[argon2]",
+	}
+
+	args := append([]string{"add"}, dependencies...)
+
+	if err := runCommand(f.Name, "uv", args...); err != nil {
+		errorMessage(fmt.Sprintf("Failed to install dependencies: %v", err))
+		return
+	}
+
+	successMessage("\nDependencies installed\n")
+
+	fmt.Printf("%sStructure%s\n", gray, " ──────────────────────────")
+
 	folders := []string{
 		"app",
+		"app/api",
 		"app/api/routes",
 		"app/core",
 		"app/db",
@@ -33,6 +88,21 @@ func (f FastForge) CreateProject() {
 		"app/utils",
 		"tests",
 	}
+
+	for _, folder := range folders {
+		path := filepath.Join(f.Name, folder)
+
+		if err := os.MkdirAll(path, 0755); err != nil {
+			errorMessage(fmt.Sprintf("Failed to create folder %s: %v", folder, err))
+			return
+		}
+	}
+
+	successMessage("FastAPI architecture")
+	successMessage("Application structure")
+	successMessage("Test structure")
+
+	fmt.Printf("\n%sFiles%s\n", gray, " ──────────────────────────")
 
 	files := []string{
 		"app/__init__.py",
@@ -49,70 +119,118 @@ func (f FastForge) CreateProject() {
 		"app/repositories/__init__.py",
 		"app/utils/__init__.py",
 		"tests/__init__.py",
-		"requirements.txt",
 		".gitignore",
 		".env",
 		".env.example",
 		"README.md",
 	}
 
-	for _, folder := range folders {
-		path := filepath.Join(f.Name, folder)
-
-		err := os.MkdirAll(path, 0755)
-		if err != nil {
-			fmt.Println("Error:", err)
-			return
-		}
-	}
-
 	for _, file := range files {
-		path := filepath.Join(f.Name, file)
-
-		var content []byte
-
-		switch file {
-		case "app/main.py":
-			template, err := templatesFS.ReadFile("templates/main.py")
-			if err != nil {
-				fmt.Println("Error reading template:", err)
-				return
-			}
-
-			content = template
-
-		case ".gitignore":
-			template, err := templatesFS.ReadFile("templates/gitignore.txt")
-			if err != nil {
-				fmt.Println("Error reading template:", err)
-				return
-			}
-
-			content = template
-
-		case "requirements.txt":
-			template, err := templatesFS.ReadFile("templates/requirements.txt")
-			if err != nil {
-				fmt.Println("Error reading template:", err)
-				return
-			}
-
-			content = template
-		}
-
-		err := os.WriteFile(path, content, 0644)
-		if err != nil {
-			fmt.Println("Error:", err)
+		if err := createFile(f.Name, file); err != nil {
+			errorMessage(fmt.Sprintf("Failed to create %s: %v", file, err))
 			return
 		}
-
-		fmt.Println(path)
 	}
 
-	fmt.Printf("\nProject created: { Name: %s }\n", f.Name)
+	successMessage(fmt.Sprintf("%d files created", len(files)))
+
+	fmt.Println()
+	fmt.Printf("%s─────────────────────────────────────────────%s\n", gray, reset)
+
+	fmt.Printf("\n%sSuccess!%s\n\n", green, reset)
+
+	fmt.Printf("%sProject:%s %s\n", gray, reset, f.Name)
+	fmt.Printf("%sFiles:%s   %d\n", gray, reset, len(files))
+	fmt.Printf("%sPackages:%s %d\n", gray, reset, len(dependencies))
+
+	fmt.Println()
+	fmt.Println("Next steps:")
+	fmt.Println()
+	fmt.Printf("  %scd %s%s\n", cyan, f.Name, reset)
+	fmt.Printf("  %suv run fastapi dev app/main.py%s\n", cyan, reset)
+	fmt.Println()
+
+	if err := runCommand(f.Name, ".venv/Scripts/activate.ps1"); err != nil {
+
+	}
+}
+
+func createFile(projectName string, file string) error {
+	path := filepath.Join(projectName, file)
+
+	var content []byte
+
+	switch file {
+	case "app/main.py":
+		template, err := templatesFS.ReadFile("templates/main.py")
+		if err != nil {
+			return err
+		}
+
+		content = template
+
+	case ".gitignore":
+		template, err := templatesFS.ReadFile("templates/gitignore.txt")
+		if err != nil {
+			return err
+		}
+
+		content = template
+
+	default:
+		content = []byte{}
+	}
+
+	return os.WriteFile(path, content, 0644)
 }
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func isUVInstalled() bool {
+	_, err := exec.LookPath("uv")
+	return err == nil
+}
+
+func installUV() error {
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("automatic uv installation is currently supported only on Windows")
+	}
+
+	cmd := exec.Command(
+		"powershell",
+		"-ExecutionPolicy",
+		"ByPass",
+		"-c",
+		"irm https://astral.sh/uv/install.ps1 | iex",
+	)
+
+	cmd.Stdout = nil
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
+func runCommand(dir string, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
+func successMessage(message string) {
+	fmt.Printf("  %s✓%s %s\n", green, reset, message)
+}
+
+func errorMessage(message string) {
+	fmt.Printf("  %s✗%s %s\n", red, reset, message)
+}
+
+func infoMessage(message string) {
+	fmt.Printf("  %s•%s %s\n", yellow, reset, message)
 }
